@@ -1,0 +1,105 @@
+name: Build Elish Kernel with KernelSU
+
+on:
+  push:
+    branches: [android15-lineage22-mod]
+    paths-ignore:
+      - '*.md'
+      - 'Documentation/**'
+  pull_request:
+    branches: [android15-lineage22-mod]
+  workflow_dispatch:
+
+env:
+  TARGET_DEVICE: elish
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: "2G"
+          key: elish-${{ github.ref_name }}
+          restore-keys: elish-
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git-core \
+            gnupg \
+            flex \
+            bison \
+            build-essential \
+            zip \
+            curl \
+            zlib1g-dev \
+            libc6-dev-i386 \
+            libncurses-dev \
+            xz-utils \
+            libssl-dev \
+            bc \
+            wget \
+            cpio \
+            python-is-python3
+
+      - name: Setup Clang toolchain
+        run: |
+          mkdir -p $HOME/proton-clang
+          cd $HOME/proton-clang
+          wget -q "https://github.com/kdrag0n/proton-clang/archive/refs/tags/20210522.tar.gz" -O proton-clang.tar.gz
+          tar -xzf proton-clang.tar.gz
+          # GitHub tarball extracts to proton-clang-20210522 already,
+          # but just in case it extracts differently, rename to the expected path
+          if [ ! -d "proton-clang-20210522" ]; then
+            mv proton-clang-* proton-clang-20210522
+          fi
+          echo "Clang toolchain setup completed"
+
+      - name: Fix host linker compatibility
+        run: |
+          # proton-clang's ld (binutils from 2021) doesn't understand Ubuntu 24.04's
+          # glibc .relr.dyn ELF section. Remove it so host tools (fixdep etc.) use
+          # the system ld instead. Cross-linkers (aarch64/arm-*-ld) are unaffected.
+          rm -f $HOME/proton-clang/proton-clang-20210522/bin/ld
+
+      - name: Build kernel
+        run: |
+          bash build.sh ${{ env.TARGET_DEVICE }} ksu
+
+      - name: Upload AOSP kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel_AOSP_${{ env.TARGET_DEVICE }}_SukiSU-SUSFS
+          path: Kernel_AOSP_${{ env.TARGET_DEVICE }}_SukiSU-SUSFS_*.zip
+          if-no-files-found: warn
+
+      - name: Upload MIUI kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel_MIUI_${{ env.TARGET_DEVICE }}_SukiSU-SUSFS
+          path: Kernel_MIUI_${{ env.TARGET_DEVICE }}_SukiSU-SUSFS_*.zip
+          if-no-files-found: warn
+
+      - name: Create Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Elish KSU Kernel - ${{ github.run_number }}"
+          tag_name: "elish-ksu-${{ github.run_number }}"
+          files: |
+            Kernel_AOSP_${{ env.TARGET_DEVICE }}_SukiSU-SUSFS_*.zip
+            Kernel_MIUI_${{ env.TARGET_DEVICE }}_SukiSU-SUSFS_*.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
