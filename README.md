@@ -1,3 +1,13 @@
+# kernel_xiaomi_sm8250_mod
+
+fork自[liyafe1997/kernel_xiaomi_sm8250_mod](https://github.com/liyafe1997/kernel_xiaomi_sm8250_mod)
+
+修改以使Xiaomi Pad 5 Pro (elish)能够使用[Droidspaces](https://github.com/ravindu644/Droidspaces-OSS)
+
+添加了需要的内核配置，并修了一个导致kernel panic的神秘空指针bug
+
+LLM写了GitHub Actions的workflow文件
+
 # Notice / 注意
 For SukiSU users: Please use [SukiSU Manager 3.2.0](https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/tag/v3.2.0), 4.0 and above are not supported yet of the SukiSU version in this kernel.
 
