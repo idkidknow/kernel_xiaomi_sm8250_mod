@@ -121,7 +121,16 @@ static struct dentry *proc_mount(struct file_system_type *fs_type,
 			return ERR_PTR(-EPERM);
 	}
 
-	sb = sget(fs_type, proc_test_super, proc_set_super, flags, ns);
+	/*
+	 * A procfs superblock is owned by the user namespace that owns its PID
+	 * namespace, not necessarily current_user_ns().  In particular, while a
+	 * task is being created with CLONE_NEWUSER | CLONE_NEWPID,
+	 * pid_ns_prepare_proc() runs in the parent task's user namespace.  Using
+	 * sget() there records the wrong owner and a later userspace mount of the
+	 * same procfs instance fails with -EBUSY.
+	 */
+	sb = sget_userns(fs_type, proc_test_super, proc_set_super, flags,
+			 ns->user_ns, ns);
 	if (IS_ERR(sb))
 		return ERR_CAST(sb);
 
